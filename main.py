@@ -8,8 +8,6 @@ import streamlit as st
 
 st.set_page_config(page_title="어제의 박스오피스", page_icon="🎬", layout="wide")
 
-# 인증키는 비밀 금고(secrets)에서 불러온다 — 코드에 직접 쓰지 않는다
-API_KEY = st.secrets["KOBIS_KEY"]
 URL = "https://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json"
 
 # '어제'를 한국 시간 기준으로 계산한다 (배포 서버의 시계는 한국 시간이 아니다)
@@ -19,9 +17,9 @@ target_dt = yesterday.strftime("%Y%m%d")
 
 
 @st.cache_data(ttl=3600)  # 같은 날짜는 한 시간 동안 기억해 두고 API를 다시 부르지 않는다
-def fetch_boxoffice(date_str):
+def fetch_boxoffice(date_str, api_key):
     """KOBIS API에서 해당 날짜의 일별 박스오피스를 받아 온다."""
-    params = {"key": API_KEY, "targetDt": date_str}
+    params = {"key": api_key, "targetDt": date_str}
     res = requests.get(URL, params=params, timeout=10)
     res.raise_for_status()
     return res.json()
@@ -30,8 +28,17 @@ def fetch_boxoffice(date_str):
 st.title("🎬 어제의 박스오피스")
 st.caption(f"조회 날짜: {yesterday} (한국 시간 기준 어제)")
 
+# 인증키는 비밀 금고(secrets)에서 불러온다 — 코드에 직접 쓰지 않는다
+# secrets에 KOBIS_KEY가 없으면 여기서 바로 안내하고 멈춘다 (빨간 트레이스백 대신 친절한 메시지)
 try:
-    data = fetch_boxoffice(target_dt)
+    API_KEY = st.secrets["KOBIS_KEY"]
+except KeyError:
+    st.error("secrets에 KOBIS_KEY가 없습니다.")
+    st.info("스트림릿 클라우드 앱의 Settings > Secrets에 KOBIS_KEY = \"발급받은키\" 형식으로 등록해 주세요.")
+    st.stop()
+
+try:
+    data = fetch_boxoffice(target_dt, API_KEY)
 except requests.RequestException:
     st.error("서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 잠시 뒤 새로고침해 주세요.")
     st.stop()
